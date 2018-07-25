@@ -1,0 +1,25 @@
+PRODUCT_NAME = yspark_yarn_avro
+PACKAGE_OS_VERSIONED = no
+PACKAGE_OS_SPECIFIC = no
+VERSION=`cat NEW_DIST_VERSION`
+SCALA_VERSION=2.11
+
+SHORT_DESC = This package contains the necessary files for the Spark Avro package.
+LONG_DESC = This package contains the necessary files for the Spark Avro package. http://spark-packages.org/package/databricks/spark-avro , https://jira.corp.yahoo.com/browse/YSPARK
+
+CUSTODIAN = yspark-devel@yahoo-inc.com http://twiki.corp.yahoo.com/view/Grid/SparkOnYarnProduct
+
+YINST bug-product jira-yspark
+
+# Permission
+OWNER = root
+GROUP = users
+PERM = 0444
+
+# Dependencies
+# YINST requires pkg sbt 0.13.9 *
+
+symlink 0755 - - share/spark-avro spark-avro_$(SCALA_VERSION)-$(VERSION)
+
+#include the spark-avro jar
+file - - - share/spark-avro_$(SCALA_VERSION)-$(VERSION)/yspark-avro_$(SCALA_VERSION)-$(VERSION).jar ../target/scala-$(SCALA_VERSION)/spark-avro_$(SCALA_VERSION)-$(VERSION).jar

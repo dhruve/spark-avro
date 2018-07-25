@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.avro.{Schema, SchemaBuilder}
 import org.apache.avro.file.{DataFileConstants, DataFileReader}
-import org.apache.avro.generic.{GenericDatumReader, GenericRecord}
+import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericRecord}
 import org.apache.avro.mapred.{AvroOutputFormat, FsInput}
 import org.apache.avro.mapreduce.AvroJob
 import org.apache.hadoop.conf.Configuration
@@ -42,9 +42,9 @@ import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.execution.datasources.{FileFormat, OutputWriterFactory, PartitionedFile}
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{DataType, StringType, StructField, StructType}
 
-private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
+private[avro] class DefaultSource extends FileFormat with DataSourceRegister with Serializable {
   private val log = LoggerFactory.getLogger(getClass)
 
   override def equals(other: Any): Boolean = other match {
@@ -88,13 +88,28 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       }
     }
 
-    SchemaConverters.toSqlType(avroSchema).dataType match {
-      case t: StructType => Some(t)
-      case _ => throw new RuntimeException(
-        s"""Avro schema cannot be converted to a Spark SQL StructType:
-           |
-           |${avroSchema.toString(true)}
-           |""".stripMargin)
+    val schemaType = SchemaConverters.toSqlType(avroSchema)
+
+    if (isSchemaPrimitive(avroSchema)) {
+      val fields = Seq(StructField("value", schemaType.dataType , nullable = false))
+      Some(StructType(fields))
+    } else {
+      schemaType.dataType match {
+        case t: StructType => Some(t)
+        case _ => throw new RuntimeException(
+          s"""Avro schema cannot be converted to a Spark SQL StructType:
+             |
+             |${avroSchema.toString(true)}
+             |""".stripMargin)
+      }
+    }
+  }
+
+  def isSchemaPrimitive(schema: Schema): Boolean = {
+    schema.getType  match {
+      case Schema.Type.BOOLEAN | Schema.Type.BYTES | Schema.Type.DOUBLE | Schema.Type.FLOAT |
+           Schema.Type.INT | Schema.Type.LONG | Schema.Type.STRING => true
+      case _ => false
     }
   }
 
@@ -172,12 +187,22 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
       ) {
         Iterator.empty
       } else {
+        // Obtain the schema from the file or the user defined schema.
+        // Check if it is a primitive type.
         val reader = {
           val in = new FsInput(new Path(new URI(file.filePath)), conf)
           try {
             val datumReader = userProvidedSchema match {
-              case Some(userSchema) => new GenericDatumReader[GenericRecord](userSchema)
-              case _ => new GenericDatumReader[GenericRecord]()
+              case Some(userSchema) => {
+                if (isSchemaPrimitive(userSchema)) {
+                  new GenericDatumReader[GenericData](userSchema)
+                } else {
+                  new GenericDatumReader[GenericRecord](userSchema)
+                }
+              }
+              case _ => {
+                new GenericDatumReader[GenericRecord]()
+              }
             }
             DataFileReader.openReader(in, datumReader)
           } catch {
@@ -199,8 +224,10 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister {
         reader.sync(file.start)
         val stop = file.start + file.length
 
+        val avroSchema = userProvidedSchema.getOrElse(reader.getSchema)
+
         val rowConverter = SchemaConverters.createConverterToSQL(
-          userProvidedSchema.getOrElse(reader.getSchema), requiredSchema)
+        avroSchema, requiredSchema, isSchemaPrimitive(avroSchema))
 
         new Iterator[InternalRow] {
           // Used to convert `Row`s containing data columns into `InternalRow`s.

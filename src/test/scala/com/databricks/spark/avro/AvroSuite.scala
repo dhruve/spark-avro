@@ -752,4 +752,51 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       assert(readDf.collect().sameElements(writeDf.collect()))
     }
   }
+
+  test("test reading/writing primitive types") {
+    TestUtils.withTempDir { tempDir =>
+      // Read avro file saved on the last step
+      val booleanDF = spark.read.avro("src/test/resources/randomBoolean.avro")
+      assert(booleanDF.count == 20)
+      assert(booleanDF.rdd.count == 20)
+      booleanDF.write.avro(tempDir + "/randomBoolean.avro")
+      assert(spark.read.avro(tempDir + "/randomBoolean.avro").count == 20)
+
+      val byteDF = spark.read.avro("src/test/resources/randomBytes.avro")
+      assert(byteDF.count == 20)
+      assert(byteDF.rdd.count == 20)
+      byteDF.write.avro(tempDir + "/randomBytes.avro")
+      assert(spark.read.avro(tempDir + "/randomBytes.avro").count == 20)
+
+      val doubleDF = spark.read.avro("src/test/resources/randomDouble.avro")
+      assert(doubleDF.count == 20)
+      assert(doubleDF.rdd.count == 20)
+      doubleDF.write.avro(tempDir + "/randomDouble.avro")
+      assert(spark.read.avro(tempDir + "/randomDouble.avro").count == 20)
+
+      val floatDF = spark.read.avro("src/test/resources/randomFloat.avro")
+      assert(floatDF.count == 20)
+      assert(floatDF.rdd.count == 20)
+      floatDF.write.avro(tempDir + "/randomFloat2.avro")
+      assert(spark.read.avro(tempDir + "/randomFloat2.avro").count == 20)
+
+      val intDF = spark.read.avro("src/test/resources/randomInt.avro")
+      assert(intDF.count == 20)
+      assert(intDF.rdd.count == 20)
+      intDF.write.avro(tempDir + "/randomInt.avro")
+      assert(spark.read.avro(tempDir + "/randomInt.avro").count == 20)
+
+      val longDF = spark.read.avro("src/test/resources/randomLong.avro")
+      assert(longDF.count == 20)
+      assert(longDF.rdd.count == 20)
+      longDF.write.avro(tempDir + "/randomLong.avro")
+      assert(spark.read.avro(tempDir + "/randomLong.avro").count == 20)
+
+      val stringDF = spark.read.avro("src/test/resources/randomString.avro")
+      assert(stringDF.count == 20)
+      assert(stringDF.rdd.count == 20)
+      stringDF.write.avro(tempDir + "/randomString.avro")
+      assert(spark.read.avro(tempDir + "/randomString.avro").count == 20)
+    }
+  }
 }

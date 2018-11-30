@@ -310,10 +310,10 @@ object SchemaConverters {
   private[avro] def createConverterToSQL(
     sourceAvroSchema: Schema,
     targetSqlType: DataType,
-    isSchemaPrimitive: Boolean): AnyRef => AnyRef = {
+    isSchemaARecord: Boolean): AnyRef => AnyRef = {
     // If the schema is primitive, create a GenericRow for compatibility by wrapping the primitive
     // data type
-    if (isSchemaPrimitive) {
+    if (!isSchemaARecord) {
       targetSqlType match {
         case t: StructType => {
           // If we do not have any fields in the targetSqlType, this might be an operation like

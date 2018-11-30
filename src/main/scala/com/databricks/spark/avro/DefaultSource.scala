@@ -42,7 +42,7 @@ import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.execution.datasources.{FileFormat, OutputWriterFactory, PartitionedFile}
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
-import org.apache.spark.sql.types.{DataType, StringType, StructField, StructType}
+import org.apache.spark.sql.types.{DataType, StringType, StructField, StructType, ArrayType}
 
 private[avro] class DefaultSource extends FileFormat with DataSourceRegister with Serializable {
   private val log = LoggerFactory.getLogger(getClass)
@@ -90,18 +90,9 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
 
     val schemaType = SchemaConverters.toSqlType(avroSchema)
 
-    if (isSchemaPrimitive(avroSchema)) {
-      val fields = Seq(StructField("value", schemaType.dataType , nullable = false))
-      Some(StructType(fields))
-    } else {
-      schemaType.dataType match {
-        case t: StructType => Some(t)
-        case _ => throw new RuntimeException(
-          s"""Avro schema cannot be converted to a Spark SQL StructType:
-             |
-             |${avroSchema.toString(true)}
-             |""".stripMargin)
-      }
+    schemaType.dataType match {
+      case t: StructType => Some(t)
+      case _ => Some(StructType(Seq(StructField("value", schemaType.dataType, nullable = false))))
     }
   }
 
@@ -109,6 +100,13 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
     schema.getType  match {
       case Schema.Type.BOOLEAN | Schema.Type.BYTES | Schema.Type.DOUBLE | Schema.Type.FLOAT |
            Schema.Type.INT | Schema.Type.LONG | Schema.Type.STRING => true
+      case _ => false
+    }
+  }
+
+  def isSchemaARecord(schema: Schema): Boolean = {
+    schema.getType match {
+      case Schema.Type.RECORD => true
       case _ => false
     }
   }
@@ -227,7 +225,7 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
         val avroSchema = userProvidedSchema.getOrElse(reader.getSchema)
 
         val rowConverter = SchemaConverters.createConverterToSQL(
-        avroSchema, requiredSchema, isSchemaPrimitive(avroSchema))
+        avroSchema, requiredSchema, isSchemaARecord(avroSchema))
 
         new Iterator[InternalRow] {
           // Used to convert `Row`s containing data columns into `InternalRow`s.

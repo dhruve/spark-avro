@@ -799,4 +799,22 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       assert(spark.read.avro(tempDir + "/randomString.avro").count == 20)
     }
   }
+
+  test("test reading/writing complex types") {
+    TestUtils.withTempDir { tempDir =>
+      // Read avro file saved on the last step
+      val arrayDF = spark.read.avro("src/test/resources/array.avro")
+      assert(arrayDF.count == 1)
+      assert(arrayDF.rdd.count == 1)
+      arrayDF.write.avro(tempDir + "/array.avro")
+      assert(spark.read.avro(tempDir + "/array.avro").count == 1)
+
+      val mapDF = spark.read.avro("src/test/resources/map.avro")
+      assert(mapDF.count == 1)
+      assert(mapDF.rdd.count == 1)
+      mapDF.write.avro(tempDir + "/map.avro")
+      assert(spark.read.avro(tempDir + "/map.avro").count == 1)
+
+    }
+  }
 }

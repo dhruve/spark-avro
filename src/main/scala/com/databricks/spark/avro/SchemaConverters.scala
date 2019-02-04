@@ -299,13 +299,55 @@ object SchemaConverters {
         case (left, right) =>
           throw new IncompatibleSchemaException(
             s"Cannot convert Avro schema to catalyst type because schema at path " +
-              s"${path.mkString(".")} is not compatible (avroType = $left, sqlType = $right). \n" +
+              s"${path.mkString(".")} is not compatible (avroType = $right, sqlType = $left). \n" +
               s"Source Avro schema: $sourceAvroSchema.\n" +
               s"Target Catalyst type: $targetSqlType")
       }
     }
     createConverter(sourceAvroSchema, targetSqlType, List.empty[String])
   }
+
+  private[avro] def createConverterToSQL(
+    sourceAvroSchema: Schema,
+    targetSqlType: DataType,
+    isSchemaARecord: Boolean): AnyRef => AnyRef = {
+    // If the schema is primitive, create a GenericRow for compatibility by wrapping the primitive
+    // data type
+    if (!isSchemaARecord) {
+      targetSqlType match {
+        case t: StructType => {
+          // If we do not have any fields in the targetSqlType, this might be an operation like
+          // count which doesn't require the fields to be converted.
+          if (t.length == 0) {
+            (item: AnyRef) => {
+              if (item == null) {
+                null
+              } else {
+                new GenericRow(Array[Any] (0))
+              }
+            }
+          } else {
+            // extract the field and pass the appropriate converter based on its datatype.
+            val sqlField = t.fields(0)
+            val converter = createConverterToSQL(sourceAvroSchema, sqlField.dataType)
+
+            (item: AnyRef) => {
+              if (item == null) {
+                null
+              } else {
+                new GenericRow(Array[Any] {
+                  converter(item)
+                })
+              }
+            }
+          }
+        }
+        case _ => throw new Exception("Cannot be here")
+      }
+    } else {
+      createConverterToSQL(sourceAvroSchema, targetSqlType)
+    }
+}
 
   /**
    * This function is used to convert some sparkSQL type to avro type. Note that this function won't

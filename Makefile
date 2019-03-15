@@ -28,6 +28,10 @@ package:
 	cp ypackage/*tgz ${SRC_DIR}/target
 	$(unignore-working-tree-changes)
 
+testcoverageplatforms:
+	@echo "Running the unit tests"
+	sbt clean test
+
 git_tag: build_description
 		git tag -f -a `dist_tag list yspark_yarn_avro_4_0_latest  | cut -d '-' -f 2 | cut -d ' ' -f 1` -m "yahoo version `dist_tag list  yspark_yarn_avro_4_0_latest | cut -d '-' -f 2 | cut -d ' ' -f 1`"
 			git push origin `dist_tag list yspark_yarn_avro_4_0_latest | cut -d '-' -f 2 | cut -d ' ' -f 1`

@@ -38,6 +38,10 @@ object SchemaConverters {
 
   case class SchemaType(dataType: DataType, nullable: Boolean)
 
+  def isNonStructType(datatype: DataType): Boolean = {
+    !datatype.isInstanceOf[StructType]
+  }
+
   /**
    * This function takes an avro schema and returns a sql schema.
    */
@@ -304,47 +308,66 @@ object SchemaConverters {
               s"Target Catalyst type: $targetSqlType")
       }
     }
+
     createConverter(sourceAvroSchema, targetSqlType, List.empty[String])
   }
 
-  private[avro] def createConverterToSQL(
+  private[avro] def getSQLConverter(
     sourceAvroSchema: Schema,
-    targetSqlType: DataType,
-    isSchemaARecord: Boolean): AnyRef => AnyRef = {
-    // If the schema is primitive, create a GenericRow for compatibility by wrapping the primitive
-    // data type
-    if (!isSchemaARecord) {
+    targetSqlType: DataType): AnyRef => AnyRef = {
+
+    // Obtain the sql type representation for the given avroSchema and check if it is not a struct
+    // type - it can be a primitive type or other complex type like an array, map or a union.
+    val sqlType = SchemaConverters.toSqlType(sourceAvroSchema)
+    val isNonStructType = SchemaConverters.isNonStructType(sqlType.dataType)
+
+    targetSqlType match {
+      case t: StructType => {
+        // If we do not have any fields in the targetSqlType, this might be an operation like
+        // count which doesn't require the fields to be converted.
+        if (t.length == 0) {
+          return (item: AnyRef) => {
+            if (item == null) {
+              null
+            } else {
+              // If the schema is primitive, create a GenericRow for compatibility by wrapping the
+              // primitive data type
+              new GenericRow(Array[Any](0))
+            }
+          }
+        }
+      }
+    }
+
+    // Check if it is a wrapped type
+    if (isNonStructType) {
       targetSqlType match {
         case t: StructType => {
-          // If we do not have any fields in the targetSqlType, this might be an operation like
-          // count which doesn't require the fields to be converted.
-          if (t.length == 0) {
-            (item: AnyRef) => {
-              if (item == null) {
-                null
-              } else {
-                new GenericRow(Array[Any] (0))
-              }
+          // extract the field and pass the appropriate converter based on its datatype.
+          val length = t.length
+          val converter =
+            if (length == 1) { // This is a primitive type or a complex type with only one field
+              createConverterToSQL(sourceAvroSchema, t.fields(0).dataType)
+            } else {
+              throw new Exception("Tried to convert an unknown type: "
+                + "\n\tsourceAvroSchema: " + sourceAvroSchema
+                + "\n\ttargetSqlType: " + targetSqlType)
             }
-          } else {
-            // extract the field and pass the appropriate converter based on its datatype.
-            val sqlField = t.fields(0)
-            val converter = createConverterToSQL(sourceAvroSchema, sqlField.dataType)
 
-            (item: AnyRef) => {
-              if (item == null) {
+          (item: AnyRef) => {
+            // For a union with nullable primitive type ex. [null, int], we need to pass a null
+            if (item == null) {
+              new GenericRow(Array[Any] {
                 null
-              } else {
-                new GenericRow(Array[Any] {
-                  converter(item)
-                })
-              }
+              })
+            } else {
+              new GenericRow(Array[Any]{converter(item)})
             }
           }
         }
         case _ => throw new Exception("Cannot be here")
       }
-    } else {
+    } else { // convert record type and unions with more than one type
       createConverterToSQL(sourceAvroSchema, targetSqlType)
     }
 }

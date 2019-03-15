@@ -73,6 +73,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
       }
     }
 
+    log.info("Inside inferSchema")
+
     // User can specify an optional avro json schema.
     val avroSchema = options.get(AvroSchema).map(new Schema.Parser().parse).getOrElse {
       val in = new FsInput(sampleFile.getPath, conf)
@@ -92,6 +94,8 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
 
     schemaType.dataType match {
       case t: StructType => Some(t)
+      // This is a non-record avro schema, so make it one by wrapping around in a StructType.
+      // All primitive types and complex types other than a record are wrapped for compatibility.
       case _ => Some(StructType(Seq(StructField("value", schemaType.dataType, nullable = false))))
     }
   }
@@ -100,13 +104,6 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
     schema.getType  match {
       case Schema.Type.BOOLEAN | Schema.Type.BYTES | Schema.Type.DOUBLE | Schema.Type.FLOAT |
            Schema.Type.INT | Schema.Type.LONG | Schema.Type.STRING => true
-      case _ => false
-    }
-  }
-
-  def isSchemaARecord(schema: Schema): Boolean = {
-    schema.getType match {
-      case Schema.Type.RECORD => true
       case _ => false
     }
   }
@@ -222,10 +219,10 @@ private[avro] class DefaultSource extends FileFormat with DataSourceRegister wit
         reader.sync(file.start)
         val stop = file.start + file.length
 
+        log.info("userProvidedSchema = ")
         val avroSchema = userProvidedSchema.getOrElse(reader.getSchema)
 
-        val rowConverter = SchemaConverters.createConverterToSQL(
-          avroSchema, requiredSchema, isSchemaARecord(avroSchema))
+        val rowConverter = SchemaConverters.getSQLConverter(avroSchema, requiredSchema)
 
         new Iterator[InternalRow] {
           // Used to convert `Row`s containing data columns into `InternalRow`s.

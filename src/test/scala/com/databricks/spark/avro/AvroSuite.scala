@@ -815,6 +815,17 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
       mapDF.write.avro(tempDir + "/map.avro")
       assert(spark.read.avro(tempDir + "/map.avro").count == 1)
 
+      val nullableUnionDF = spark.read.avro("src/test/resources/randomNullIntUnion.avro")
+      assert(nullableUnionDF.count == 20)
+      assert(nullableUnionDF.rdd.count == 20)
+      nullableUnionDF.write.avro(tempDir + "/randomNullIntUnion.avro")
+      assert(spark.read.avro(tempDir + "/randomNullIntUnion.avro").count == 20)
+      
+      val multiUnionDF = spark.read.avro("src/test/resources/randomLongString.avro")
+      assert(multiUnionDF.count == 20)
+      assert(multiUnionDF.rdd.count == 20)
+      multiUnionDF.write.avro(tempDir + "/randomLongString.avro")
+      assert(spark.read.avro(tempDir + "/randomLongString.avro").count == 20)
     }
   }
 }

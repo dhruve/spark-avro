@@ -1,7 +1,7 @@
 
 SCALA_VERSION := 2.11
-PKG_DIR := ypackage
-TGT_DIR := target
+PKG_DIR := ${SD_SOURCE_DIR}/ypackage
+TGT_DIR := ${SD_SOURCE_DIR}/target
 BASE_DIST_VERSION := $(shell cat $(PKG_DIR)/BASE_DIST_VERSION)
 NEW_DIST_VERSION := $(shell /home/y/bin/auto_increment_version.pl yspark_yarn_avro $(BASE_DIST_VERSION) | awk '{print $1}')
 

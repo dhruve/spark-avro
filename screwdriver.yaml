@@ -18,7 +18,7 @@ jobs:
         steps:
             - environment: 'source sd:environment'
             - build: gmake build
-            - junit: gmake test
+            - junit: echo 'Skip junit'
             - regression: echo 'Skip regression'
             - package: gmake package
             - publish: gmake publish
@@ -31,7 +31,7 @@ jobs:
         steps:
             - environment: 'source sd:environment'
             - build: gmake build
-            - junit: gmake test
+            - junit: echo 'Skip junit'
             - regression: echo 'Skip regression'
             - package: gmake package
             - publish: echo 'Skip publish' 

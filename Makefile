@@ -13,13 +13,10 @@ define unignore-working-tree-changes
 git ls-files -z | xargs --null git update-index --no-assume-unchanged
 endef
 
-platforms:
+build:
 	echo "$(NEW_DIST_VERSION)" > $(PKG_DIR)/NEW_DIST_VERSION
 	sbt clean package
 	mv $(TGT_DIR)/scala-$(SCALA_VERSION)/spark-avro_$(SCALA_VERSION)-$(BASE_DIST_VERSION).jar $(TGT_DIR)/scala-$(SCALA_VERSION)/spark-avro_$(SCALA_VERSION)-$(NEW_DIST_VERSION).jar 
-
-cleanplatforms:
-	@echo "Skipping clean"
 
 package:
 	$(ignore-working-tree-changes)
@@ -28,13 +25,16 @@ package:
 	cp ypackage/*tgz ${SRC_DIR}/target
 	$(unignore-working-tree-changes)
 
-testcoverageplatforms:
+test:
 	@echo "Running the unit tests"
 	sbt test
 
 git_tag: build_description
 		git tag -f -a `dist_tag list yspark_yarn_avro_4_0_latest  | cut -d '-' -f 2 | cut -d ' ' -f 1` -m "yahoo version `dist_tag list  yspark_yarn_avro_4_0_latest | cut -d '-' -f 2 | cut -d ' ' -f 1`"
 			git push origin `dist_tag list yspark_yarn_avro_4_0_latest | cut -d '-' -f 2 | cut -d ' ' -f 1`
+
+publish:
+	dist_install --branch "quarantine" --tag "yspark_yarn_avro_4_0_latest" --os "rhel"  --nomail ${SD_SOURCE_DIR}/target/
 
 build_description:
 	@echo "Build Description: `dist_tag list yspark_yarn_avro_4_0_latest | cut -d ' ' -f 1`"

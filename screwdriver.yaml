@@ -1,26 +1,40 @@
-platform: cpp
+version: 4
 
 shared:
-    notifications:
-        email: "yspark-devel@yahoo-inc.com"
-    steps:
-        git_tag:
-            description: Git tag after successful release
-            command: gmake git_tag
-        my_package:
-            description: Make packages
-            command: gmake package
-        run-dist:
-            description: "Publish yspark_yarn_avro 4.0"
-            command: step dist-publish@1 --artifactsDirectory "${SOURCE_DIR}/target" --branch "quarantine" --notifications "false" --tag "yspark_yarn_avro_4_0_latest"
-    plugins:
-        coverage:
-            enabled: false
-        test_results:
-            enabled: false
+    settings:
+        email: 'yspark-devel@verizonmedia.com'
+    annotations:
+        screwdriver.cd/cpu: LOW
+        screwdriver.cd/ram: LOW
+        screwdriver.cd/timeout: 720
+    template: HadoopTools/gridci-6_10_3@latest
+
+cache:
+    event: [$SD_ARTIFACTS_DIR]
 
 jobs:
     component:
-        order: [environment, install-rpms, init, test, build, my_package, run-dist, git_tag]
-    pull-request:
-        order: [environment, install-rpms, init, test, build, my_package]
+        requires: [~commit, ~sd@314435:component]
+        steps:
+            - environment: 'source sd:environment'
+            - build: gmake build
+            - junit: gmake test
+            - regression: echo 'Skip regression'
+            - package: gmake package
+            - publish: gmake publish
+            - statefile: echo 'Skip statefile'
+            - git_tag: gmake git_tag
+            - dist_tag: echo 'Skip dist_tag'
+
+    pull_request:
+        requires: [~pr]
+        steps:
+            - environment: 'source sd:environment'
+            - build: gmake build
+            - junit: gmake test
+            - regression: echo 'Skip regression'
+            - package: gmake package
+            - publish: echo 'Skip publish' 
+            - statefile: echo 'Skip statefile'
+            - git_tag: echo 'Skip git_tag'
+            - dist_tag: echo 'Skip dist_tag'
